@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WarBandits - Rust Gambling & Skins</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        rust: {
+                            dark: '#0f1012',
+                            card: '#16181c',
+                            border: '#2a2e37',
+                            orange: '#e65c00',
+                            bright: '#ff6600',
+                            yellow: '#f59e0b',
+                            muted: '#9ca3af'
+                        }
+                    },
+                    fontFamily: {
+                        mono: ['"Courier New"', 'Courier', 'monospace'],
+                        sans: ['system-ui', '-apple-system', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Custom scrollbar and rusted aesthetic details */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f1012;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #2a2e37;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #e65c00;
+        }
+        .rust-pattern {
+            background-color: #0f1012;
+            background-image: radial-gradient(rgba(230, 92, 0, 0.05) 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+        .hazard-border {
+            border-image: repeating-linear-gradient(-45deg, #e65c00, #e65c00 10px, #16181c 10px, #16181c 20px) 1;
+        }
+        .glow-orange {
+            box-shadow: 0 0 20px rgba(230, 92, 0, 0.25);
+        }
+        @keyframes pulse-slow {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        .animate-pulse-slow {
+            animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+    </style>
+</head>
+<body class="rust-pattern text-gray-100 font-sans min-h-screen flex flex-col selection:bg-orange-600 selection:text-white">
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none"></div>
+
+    <!-- Top Navigation / Header -->
+    <header class="bg-rust-card border-b border-rust-border sticky top-0 z-40 px-4 lg:px-8 py-3 flex items-center justify-between shadow-xl">
+        <div class="flex items-center space-x-6">
+            <div class="flex items-center space-x-3 cursor-pointer" onclick="switchTab('games')">
+                <div class="w-10 h-10 bg-gradient-to-br from-orange-600 to-amber-700 rounded flex items-center justify-center font-black text-xl italic tracking-tighter border border-orange-500/40 glow-orange">
+                    WB
+                </div>
+                <div>
+                    <span class="text-xl font-black tracking-wider text-white uppercase italic">WAR<span class="text-orange-500">BANDITS</span></span>
+                    <span class="block text-[10px] text-orange-400 font-mono tracking-widest uppercase">SURVIVAL GAMBLING</span>
+                </div>
+            </div>
+
+            <!-- Navigation Tabs -->
+            <nav class="hidden md:flex items-center space-x-1 ml-6">
+                <button onclick="switchTab('games')" id="nav-games" class="nav-btn px-4 py-2 rounded font-bold text-sm tracking-wider uppercase transition-all bg-orange-600/20 text-orange-400 border border-orange-500/40">
+                    <i class="fa-solid fa-gamepad mr-2"></i> Games
+                </button>
+                <button onclick="switchTab('cases')" id="nav-cases" class="nav-btn px-4 py-2 rounded font-bold text-sm tracking-wider uppercase transition-all text-gray-400 hover:text-white hover:bg-rust-border/50">
+                    <i class="fa-solid fa-box-open mr-2"></i> Cases
+                </button>
+                <button onclick="switchTab('battles')" id="nav-battles" class="nav-btn px-4 py-2 rounded font-bold text-sm tracking-wider uppercase transition-all text-gray-400 hover:text-white hover:bg-rust-border/50">
+                    <i class="fa-solid fa-users-rectangle mr-2"></i> Case Battles <span class="bg-orange-600 text-white text-[9px] px-1.5 py-0.5 rounded ml-1 animate-pulse">NEW</span>
+                </button>
+                <button onclick="switchTab('provably')" id="nav-provably" class="nav-btn px-4 py-2 rounded font-bold text-sm tracking-wider uppercase transition-all text-gray-400 hover:text-white hover:bg-rust-border/50">
+                    <i class="fa-solid fa-shield-halved mr-2"></i> Provably Fair
+                </button>
+            </nav>
+        </div>
+
+        <!-- User Profile & Balance -->
+        <div class="flex items-center space-x-4">
+            <!-- Faucet Button -->
+            <button onclick="claimDailyBonus()" class="hidden sm:flex items-center space-x-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition shadow-lg border border-amber-400/30">
+                <i class="fa-solid fa-coins animate-bounce"></i>
+                <span>Daily Bonus</span>
+            </button>
+
+            <!-- Balance Display -->
+            <div class="bg-rust-dark border border-rust-border px-3.5 py-1.5 rounded flex items-center space-x-2">
+                <i class="fa-solid fa-rust text-orange-500 text-lg"></i>
+                <div>
+                    <div class="text-[10px] text-gray-400 font-mono uppercase">Balance</div>
+                    <div id="user-balance" class="text-amber-400 font-mono font-bold text-sm tracking-wide">1,000.00</div>
+                </div>
+            </div>
+
+            <!-- Deposit / Withdraw Modal Trigger -->
+            <button onclick="openWalletModal()" class="bg-rust-border hover:bg-orange-600 hover:text-white text-gray-200 px-3.5 py-1.5 rounded text-xs font-bold uppercase tracking-wider transition border border-gray-700">
+                <i class="fa-solid fa-wallet mr-1"></i> Wallet
+            </button>
+
+            <!-- User Avatar & Level -->
+            <div class="flex items-center space-x-2 pl-2 border-l border-rust-border">
+                <div class="relative">
+                    <img src="https://placehold.co/40x40/2a2e37/ff6600?text=WB" alt="Avatar" class="w-9 h-9 rounded border border-orange-500/50 object-cover">
+                    <span class="absolute -bottom-1 -right-1 bg-orange-600 text-white text-[9px] font-mono px-1 rounded font-bold">LV.42</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Mobile Navigation Bar -->
+    <div class="md:hidden flex bg-rust-card border-b border-rust-border px-4 py-2 justify-around text-xs">
+        <button onclick="switchTab('games')" id="nm-games" class="text-orange-400 font-bold uppercase"><i class="fa-solid fa-gamepad block text-base mb-1"></i>Games</button>
+        <button onclick="switchTab('cases')" id="nm-cases" class="text-gray-400 font-bold uppercase"><i class="fa-solid fa-box-open block text-base mb-1"></i>Cases</button>
+        <button onclick="switchTab('battles')" id="nm-battles" class="text-gray-400 font-bold uppercase"><i class="fa-solid fa-users-rectangle block text-base mb-1"></i>Battles</button>
+        <button onclick="claimDailyBonus()" class="text-amber-400 font-bold uppercase"><i class="fa-solid fa-coins block text-base mb-1"></i>Bonus</button>
+    </div>
+
+    <!-- Main Application Container -->
+    <div class="flex-1 flex flex-col lg:flex-row max-w-[1600px] w-full mx-auto p-4 gap-6">
+
+        <!-- Left / Center Content Area -->
+        <main class="flex-1 flex flex-col gap-6">
+
+            <!-- TAB 1: GAMES LOBBY & ACTIVE GAME -->
+            <div id="tab-games" class="tab-content flex flex-col gap-6">
+                <!-- Game Selector Header -->
+                <div class="grid grid-cols-3 gap-3">
+                    <button onclick="setActiveGame('coinflip')" id="game-btn-coinflip" class="game-select-btn p-4 rounded-lg bg-rust-card border-2 border-orange-500 text-white flex flex-col items-center justify-center gap-2 transition hover:border-orange-400 shadow-lg group">
+                        <i class="fa-solid fa-coins text-2xl text-orange-500 group-hover:scale-110 transition-transform"></i>
+                        <span class="font-bold uppercase tracking-wider text-sm">Coinflip</span>
+                    </button>
+                    <button onclick="setActiveGame('crash')" id="game-btn-crash" class="game-select-btn p-4 rounded-lg bg-rust-card border-2 border-rust-border text-gray-400 flex flex-col items-center justify-center gap-2 transition hover:border-orange-500/50 hover:text-white group">
+                        <i class="fa-solid fa-chart-line text-2xl text-amber-500 group-hover:scale-110 transition-transform"></i>
+                        <span class="font-bold uppercase tracking-wider text-sm">Crash</span>
+                    </button>
+                    <button onclick="setActiveGame('roulette')" id="game-btn-roulette" class="game-select-btn p-4 rounded-lg bg-rust-card border-2 border-rust-border text-gray-400 flex flex-col items-center justify-center gap-2 transition hover:border-orange-500/50 hover:text-white group">
+                        <i class="fa-solid fa-circle-dot text-2xl text-red-500 group-hover:scale-110 transition-transform"></i>
+                        <span class="font-bold uppercase tracking-wider text-sm">Wheel</span>
+                    </button>
+                </div>
+
+                <!-- GAME CONTAINER -->
+                <div class="bg-rust-card border border-rust-border rounded-xl p-6 shadow-2xl relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-600 via-amber-500 to-rust-border"></div>
+
+                    <!-- COINFLIP GAME -->
+                    <div id="game-coinflip" class="game-view flex flex-col items-center justify-center py-8">
+                        <div class="text-center mb-8">
+                            <h2 class="text-2xl font-black uppercase tracking-wider text-white">Rust Coinflip Arena</h2>
+                            <p class="text-xs text-gray-400 font-mono mt-1">Pick your faction. 50/50 survival odds. Winner takes all.</p>
+                        </div>
+
+                        <!-- Coin Arena Display -->
+                        <div class="w-48 h-48 rounded-full border-4 border-rust-border bg-rust-dark flex items-center justify-center relative mb-8 shadow-inner overflow-hidden">
+                            <div id="coin-element" class="w-36 h-36 rounded-full bg-gradient-to-tr from-amber-700 via-orange-600 to-yellow-500 flex items-center justify-center text-white font-black text-2xl shadow-2xl border-2 border-amber-300 transition-all duration-1000 transform style-preserve-3d">
+                                <div id="coin-face" class="flex flex-col items-center">
+                                    <i class="fa-solid fa-skull text-3xl mb-1"></i>
+                                    <span class="text-xs tracking-widest font-mono">TERROR</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Side Selection -->
+                        <div class="flex gap-4 mb-6 w-full max-w-md">
+                            <button onclick="selectCoinSide('terror')" id="side-terror" class="flex-1 py-3 px-4 rounded bg-orange-600 text-white font-bold text-sm tracking-wider uppercase border-2 border-orange-400 flex items-center justify-center gap-2 transition">
+                                <i class="fa-solid fa-skull"></i> Terror (Heads)
+                            </button>
+                            <button onclick="selectCoinSide('survivor')" id="side-survivor" class="flex-1 py-3 px-4 rounded bg-rust-dark text-gray-400 font-bold text-sm tracking-wider uppercase border-2 border-rust-border flex items-center justify-center gap-2 transition hover:text-white">
+                                <i class="fa-solid fa-shield"></i> Survivor (Tails)
+                            </button>
+                        </div>
+
+                        <!-- Bet Input & Controls -->
+                        <div class="w-full max-w-md flex flex-col gap-4">
+                            <div class="flex justify-between text-xs font-mono text-gray-400">
+                                <span>BET AMOUNT</span>
+                                <span class="cursor-pointer text-orange-400 hover:underline" onclick="setCoinBet('half')">1/2</span>
+                                <span class="cursor-pointer text-orange-400 hover:underline" onclick="setCoinBet('double')">2X</span>
+                                <span class="cursor-pointer text-orange-400 hover:underline" onclick="setCoinBet('max')">MAX</span>
+                            </div>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-orange-500 font-mono"><i class="fa-solid fa-rust"></i></span>
+                                <input type="number" id="coin-bet-input" value="50" class="w-full bg-rust-dark border border-rust-border rounded py-3 pl-10 pr-16 text-white font-mono font-bold focus:outline-none focus:border-orange-500">
+                                <div class="absolute inset-y-0 right-0 pr-3 flex items-center text-xs font-mono text-gray-500">SCRAP</div>
+                            </div>
+                            <button onclick="playCoinflip()" id="coin-play-btn" class="w-full py-4 rounded bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white font-black uppercase tracking-widest text-base shadow-lg border border-orange-400/40 transition">
+                                FLIP COIN
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- CRASH GAME -->
+                    <div id="game-crash" class="game-view hidden flex flex-col items-center justify-center py-4">
+                        <div class="w-full flex justify-between items-center mb-4">
+                            <div>
+                                <h2 class="text-xl font-black uppercase tracking-wider text-white">Cargo Plane Crash</h2>
+                                <p class="text-xs text-gray-400 font-mono">Cash out before the plane goes down in flames!</p>
+                            </div>
+                            <div id="crash-status" class="bg-rust-dark px-3 py-1 rounded border border-rust-border text-xs font-mono text-amber-400">
+                                WAITING FOR NEXT ROUND...
+                            </div>
+                        </div>
+
+                        <!-- Crash Multiplier Display / Canvas Area -->
+                        <div class="w-full h-64 bg-rust-dark rounded-xl border border-rust-border relative flex flex-col items-center justify-center overflow-hidden mb-6 shadow-inner">
+                            <!-- Background Grid Lines -->
+                            <div class="absolute inset-0 bg-[linear-gradient(to_right,#2a2e3715_1px,transparent_1px),linear-gradient(to_bottom,#2a2e3715_1px,transparent_1px)] bg-[size:32px_32px]"></div>
+                            
+                            <div id="crash-multiplier-display" class="text-6xl font-black font-mono text-white tracking-wider z-10">
+                                1.00<span class="text-orange-500">x</span>
+                            </div>
+                            <div id="crash-sub-status" class="text-xs font-mono text-gray-400 uppercase tracking-widest mt-2 z-10">
+                                LIFT OFF IN 3.0s
+                            </div>
+                            <i id="crash-plane-icon" class="fa-solid fa-plane text-orange-500 text-3xl absolute bottom-10 left-10 transform -rotate-45 transition-all duration-300"></i>
+                        </div>
+
+                        <!-- Crash Controls -->
+                        <div class="w-full grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="flex flex-col gap-2">
+                                <label class="text-xs font-mono text-gray-400">BET AMOUNT (SCRAP)</label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-orange-500"><i class="fa-solid fa-rust"></i></span>
+                                    <input type="number" id="crash-bet-input" value="100" class="w-full bg-rust-dark border border-rust-border rounded py-2.5 pl-10 pr-4 text-white font-mono font-bold focus:outline-none focus:border-orange-500">
+                                </div>
+                            </div>
+                            <div class="flex flex-col gap-2">
+                                <label class="text-xs font-mono text-gray-400">AUTO CASH OUT</label>
+                                <div class="relative">
+                                    <input type="number" id="crash-auto-input" value="2.00" step="0.1" class="w-full bg-rust-dark border border-rust-border rounded py-2.5 px-4 text-white font-mono font-bold focus:outline-none focus:border-orange-500">
+                                    <span class="absolute inset-y-0 right-0 pr-3 flex items-center text-xs text-gray-500 font-mono">X</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button onclick="handleCrashAction()" id="crash-action-btn" class="w-full mt-4 py-4 rounded bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white font-black uppercase tracking-widest text-base shadow-lg border border-orange-400/40 transition">
+                            PLACE BET FOR NEXT ROUND
+                        </button>
+                    </div>
+
+                    <!-- ROULETTE / WHEEL GAME -->
+                    <div id="game-roulette" class="game-view hidden flex flex-col items-center justify-center py-6">
+                        <div class="text-center mb-6">
+                            <h2 class="text-xl font-black uppercase tracking-wider text-white">Bandit Camp Roulette</h2>
+                            <p class="text-xs text-gray-400 font-mono">Bet on Rust colors. 2x, 3x, 5x, or 10x multiplier payouts.</p>
+                        </div>
+
+                        <!-- Wheel Visual Slider -->
+                        <div class="w-full max-w-2xl bg-rust-dark rounded-xl border border-rust-border p-4 relative overflow-hidden mb-6">
+                            <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 w-1 h-20 bg-amber-400 shadow-[0_0_10px_#f59e0b]"></div>
+                            <div id="roulette-strip" class="flex gap-2 transition-transform duration-[4000ms] ease-out py-2">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+
+                        <!-- Betting Options -->
+                        <div class="grid grid-cols-4 gap-3 w-full max-w-2xl mb-6">
+                            <button onclick="selectRouletteColor('rust')" id="r-color-rust" class="p-3 rounded bg-orange-900/40 border-2 border-orange-600 text-white font-bold uppercase text-xs flex flex-col items-center gap-1 transition">
+                                <span class="w-4 h-4 rounded-full bg-orange-600 block"></span> Rust (2x)
+                            </button>
+                            <button onclick="selectRouletteColor('bandit')" id="r-color-bandit" class="p-3 rounded bg-rust-dark border-2 border-rust-border text-gray-400 font-bold uppercase text-xs flex flex-col items-center gap-1 transition">
+                                <span class="w-4 h-4 rounded-full bg-blue-600 block"></span> Bandit (3x)
+                            </button>
+                            <button onclick="selectRouletteColor('elite')" id="r-color-elite" class="p-3 rounded bg-rust-dark border-2 border-rust-border text-gray-400 font-bold uppercase text-xs flex flex-col items-center gap-1 transition">
+                                <span class="w-4 h-4 rounded-full bg-purple-600 block"></span> Elite (5x)
+                            </button>
+                            <button onclick="selectRouletteColor('hazard')" id="r-color-hazard" class="p-3 rounded bg-rust-dark border-2 border-rust-border text-gray-400 font-bold uppercase text-xs flex flex-col items-center gap-1 transition">
+                                <span class="w-4 h-4 rounded-full bg-amber-500 block"></span> Hazard (14x)
+                            </button>
+                        </div>
+
+                        <div class="w-full max-w-2xl flex gap-4">
+                            <div class="relative flex-1">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-orange-500"><i class="fa-solid fa-rust"></i></span>
+                                <input type="number" id="roulette-bet-input" value="50" class="w-full bg-rust-dark border border-rust-border rounded py-3 pl-10 pr-4 text-white font-mono font-bold focus:outline-none focus:border-orange-500">
+                            </div>
+                            <button onclick="spinRoulette()" id="roulette-spin-btn" class="px-8 py-3 rounded bg-gradient-to-r from-orange-600 to-amber-600 text-white font-black uppercase tracking-wider text-sm shadow-lg border border-orange-400/40 hover:from-orange-500 hover:to-amber-500 transition">
+                                SPIN WHEEL
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Bets Feed -->
+                <div class="bg-rust-card border border-rust-border rounded-xl p-4 shadow-xl">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="text-xs font-mono font-bold tracking-wider uppercase text-gray-400 flex items-center gap-2">
+                            <i class="fa-solid fa-bolt text-amber-500"></i> Live Bets Feed
+                        </h3>
+                        <span class="text-[10px] text-gray-500 font-mono">Real-time Activity</span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs font-mono">
+                            <thead>
+                                <tr class="text-gray-500 border-b border-rust-border">
+                                    <th class="pb-2">PLAYER</th>
+                                    <th class="pb-2">GAME</th>
+                                    <th class="pb-2">BET</th>
+                                    <th class="pb-2">MULTIPLIER</th>
+                                    <th class="pb-2 text-right">PAYOUT</th>
+                                </</tr>
+                            </thead>
+                            <tbody id="live-bets-table" class="divide-y divide-rust-border/50">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: CASES / CRATES UNBOXING -->
+            <div id="tab-cases" class="tab-content hidden flex flex-col gap-6">
+                <!-- ... existing cases markup ... -->
+                <div class="bg-rust-card border border-rust-border rounded-xl p-6 shadow-2xl relative overflow-hidden">
+                    <div class="text-center mb-6">
+                        <h2 class="text-2xl font-black uppercase tracking-wider text-white">Military Crate Unboxing</h2>
+                        <p class="text-xs text-gray-400 font-mono mt-1">Open crates for rare weapon skins and high-value scrap items.</p>
+                    </div>
+
+                    <!-- Case Selector Carousel -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+                        <div onclick="selectCase('airdrop')" id="case-card-airdrop" class="case-card bg-rust-dark border-2 border-orange-500 rounded-xl p-4 flex flex-col items-center cursor-pointer transition hover:border-orange-400 relative">
+                            <span class="absolute top-2 right-2 bg-orange-600/20 text-orange-400 text-[10px] font-mono px-2 py-0.5 rounded border border-orange-500/30">50 SCRAP</span>
+                            <div class="w-24 h-24 my-2 flex items-center justify-center bg-rust-border/30 rounded-lg">
+                                <i class="fa-solid fa-parachute-box text-5xl text-orange-500"></i>
+                            </div>
+                            <span class="font-black text-sm uppercase tracking-wider mt-2">Airdrop Crate</span>
+                            <span class="text-[11px] text-gray-400 font-mono mt-1">Common & Rare Skins</span>
+                        </div>
+                        <div onclick="selectCase('military')" id="case-card-military" class="case-card bg-rust-dark border-2 border-rust-border rounded-xl p-4 flex flex-col items-center cursor-pointer transition hover:border-orange-500/50 relative">
+                            <span class="absolute top-2 right-2 bg-blue-600/20 text-blue-400 text-[10px] font-mono px-2 py-0.5 rounded border border-blue-500/30">250 SCRAP</span>
+                            <div class="w-24 h-24 my-2 flex items-center justify-center bg-rust-border/30 rounded-lg">
+                                <i class="fa-solid fa-box text-5xl text-blue-500"></i>
+                            </div>
+                            <span class="font-black text-sm uppercase tracking-wider mt-2">Military Crate</span>
+                            <span class="text-[11px] text-gray-400 font-mono mt-1">Rare & Epic Weaponry</span>
+                        </div>
+                        <div onclick="selectCase('elite')" id="case-card-elite" class="case-card bg-rust-dark border-2 border-rust-border rounded-xl p-4 flex flex-col items-center cursor-pointer transition hover:border-orange-500/50 relative">
+                            <span class="absolute top-2 right-2 bg-purple-600/20 text-purple-400 text-[10px] font-mono px-2 py-0.5 rounded border border-purple-500/30">1,000 SCRAP</span>
+                            <div class="w-24 h-24 my-2 flex items-center justify-center bg-rust-border/30 rounded-lg">
+                                <i class="fa-solid fa-box-archive text-5xl text-purple-500"></i>
+                            </div>
+                            <span class="font-black text-sm uppercase tracking-wider mt-2">Elite Armored Crate</span>
+                            <span class="text-[11px] text-gray-400 font-mono mt-1">Legendary & High-Tier Gear</span>
+                        </div>
+                    </div>
+
+                    <!-- Spinner Window -->
+                    <div class="w-full bg-rust-dark rounded-xl border border-rust-border p-6 relative overflow-hidden mb-6">
+                        <!-- Center Indicator Line -->
+                        <div class="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-1.5 bg-amber-400 z-30 shadow-[0_0_15px_#f59e0b]"></div>
+                        
+                        <div class="overflow-hidden relative w-full py-4">
+                            <div id="case-spinner-track" class="flex gap-4 transition-all duration-[4000ms] ease-out will-change-transform">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Spin Controls & Result -->
+                    <div class="flex flex-col items-center gap-4">
+                        <div id="case-result-display" class="text-sm font-mono text-gray-300 h-8 flex items-center justify-center text-center px-4 py-2 bg-rust-dark/60 rounded border border-rust-border w-full max-w-md">
+                            Select a crate and press unbox to claim items.
+                        </div>
+                        <button onclick="openCase()" id="case-spin-btn" class="w-full max-w-md py-4 rounded bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white font-black uppercase tracking-widest text-base shadow-lg border border-orange-400/40 transition">
+                            UNBOX CRATE (50 SCRAP)
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: CASE BATTLES (MULTIPLIER / MULTIPLAYER ARENA) -->
+            <div id="tab-battles" class="tab-content hidden flex flex-col gap-6">
+                <div class="bg-rust-card border border-rust-border rounded-xl p-6 shadow-2xl relative overflow-hidden">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                        <div>
+                            <h2 class="text-2xl font-black uppercase tracking-wider text-white flex items-center gap-2">
+                                <i class="fa-solid fa-users-rectangle text-orange-500"></i> Multiplayer Case Battles
+                            </h2>
+                            <p class="text-xs text-gray-400 font-mono mt-1">Compete head-to-head or in 3-player free-for-alls. Most total skin value wins all unboxed gear!</p>
+                        </div>
+                        <button onclick="openCreateBattleModal()" class="px-5 py-3 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white font-black uppercase text-xs rounded-lg shadow-lg border border-orange-400/40 transition flex items-center gap-2">
+                            <i class="fa-solid fa-plus"></i> Create Battle Room
+                        </button>
+                    </div>
+
+                    <!-- Active Battles Lobby Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="battles-lobby-grid">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: PROVABLY FAIR -->
+            <div id="tab-provably" class="tab-content hidden flex flex-col gap-6">
+                <div class="bg-rust-card border border-rust-border rounded-xl p-6 shadow-2xl">
+                    <h2 class="text-xl font-black uppercase tracking-wider text-white mb-4"><i class="fa-solid fa-shield-halved text-orange-500 mr-2"></i> Provably Fair Verification</h2>
+                    <p class="text-xs text-gray-400 font-mono mb-6">WarBandits uses cryptographic SHA-256 hashing to guarantee 100% fair game outcomes that can never be manipulated by the house.</p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div class="bg-rust-dark p-4 rounded-lg border border-rust-border flex flex-col gap-2">
+                            <span class="text-xs font-mono text-gray-400">SERVER SEED (HASHED)</span>
+                            <input type="text" readonly value="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" class="bg-black/40 border border-rust-border rounded p-2 text-xs font-mono text-orange-400 select-all">
+                        </div>
+                        <div class="bg-rust-dark p-4 rounded-lg border border-rust-border flex flex-col gap-2">
+                            <span class="text-xs font-mono text-gray-400">CLIENT SEED</span>
+                            <input type="text" id="client-seed-input" value="bandit_survivor_99" class="bg-black/40 border border-rust-border rounded p-2 text-xs font-mono text-white focus:outline-none focus:border-orange-500">
+                        </div>
+                    </div>
+                    <button onclick="showToast('Client seed successfully updated!', 'success')" class="px-6 py-2.5 rounded bg-rust-border hover:bg-orange-600 text-white font-bold text-xs uppercase tracking-wider transition">
+                        Update Client Seed
+                    </button>
+                </div>
+            </div>
+
+    <!-- CREATE BATTLE MODAL -->
+    <div id="create-battle-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-rust-card border border-rust-border rounded-xl max-w-lg w-full p-6 shadow-2xl relative">
+            <button onclick="closeCreateBattleModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+            <h3 class="text-lg font-black uppercase tracking-wider text-white mb-4"><i class="fa-solid fa-users-rectangle text-orange-500 mr-2"></i> Create Case Battle</h3>
+            
+            <div class="flex flex-col gap-4">
+                <div>
+                    <label class="text-xs font-mono text-gray-400 uppercase block mb-2">Select Battle Mode</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="setBattlePlayers(2)" id="b-mode-2" class="p-3 bg-orange-600/20 border-2 border-orange-500 rounded text-white font-bold text-xs uppercase flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-user-group"></i> 1v1 (2 Players)
+                        </button>
+                        <button onclick="setBattlePlayers(3)" id="b-mode-3" class="p-3 bg-rust-dark border-2 border-rust-border rounded text-gray-400 font-bold text-xs uppercase flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-users"></i> 1v1v1 (3 Players)
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-xs font-mono text-gray-400 uppercase block mb-2">Select Crate Type</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="setBattleCase('airdrop')" id="b-case-airdrop" class="p-3 bg-rust-dark border-2 border-orange-500 rounded text-center">
+                            <span class="block font-bold text-xs uppercase text-orange-400">Airdrop</span>
+                            <span class="text-[10px] font-mono text-gray-500">50 Scrap</span>
+                        </button>
+                        <button onclick="setBattleCase('military')" id="b-case-military" class="p-3 bg-rust-dark border-2 border-rust-border rounded text-center">
+                            <span class="block font-bold text-xs uppercase text-gray-300">Military</span>
+                            <span class="text-[10px] font-mono text-gray-500">250 Scrap</span>
+                        </button>
+                        <button onclick="setBattleCase('elite')" id="b-case-elite" class="p-3 bg-rust-dark border-2 border-rust-border rounded text-center">
+                            <span class="block font-bold text-xs uppercase text-gray-300">Elite</span>
+                            <span class="text-[10px] font-mono text-gray-500">1,000 Scrap</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-xs font-mono text-gray-400 uppercase block mb-2">Number of Cases to Open</label>
+                    <div class="flex gap-2">
+                        <button onclick="setBattleCount(1)" id="b-count-1" class="flex-1 py-2 bg-orange-600 text-white font-bold text-xs rounded border border-orange-400">1 Crate</button>
+                        <button onclick="setBattleCount(3)" id="b-count-3" class="flex-1 py-2 bg-rust-dark text-gray-400 font-bold text-xs rounded border border-rust-border">3 Crates</button>
+                        <button onclick="setBattleCount(5)" id="b-count-5" class="flex-1 py-2 bg-rust-dark text-gray-400 font-bold text-xs rounded border border-rust-border">5 Crates</button>
+                    </div>
+                </div>
+
+                <button onclick="createBattleRoom()" class="w-full py-3.5 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white font-black uppercase text-xs rounded shadow-lg border border-orange-400/40 mt-2 transition">
+                    Create & Enter Room
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- BATTLE ARENA ROOM MODAL -->
+    <div id="battle-room-modal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md hidden flex-col p-4 overflow-y-auto">
+        <div class="max-w-5xl w-full mx-auto my-auto bg-rust-card border border-rust-border rounded-xl p-6 shadow-2xl flex flex-col gap-6 relative">
+            <button onclick="closeBattleRoomModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+            
+            <div class="flex justify-between items-center border-b border-rust-border pb-4">
+                <div>
+                    <h3 class="text-xl font-black uppercase tracking-wider text-white flex items-center gap-2">
+                        <i class="fa-solid fa-fire text-orange-500 animate-bounce"></i> Case Battle Arena
+                    </h3>
+                    <p id="battle-room-subtitle" class="text-xs text-gray-400 font-mono mt-1">Airdrop Crate (1x) • Waiting for combatants...</p>
+                </div>
+                <div id="battle-room-status" class="bg-rust-dark px-4 py-2 rounded border border-rust-border text-xs font-mono text-amber-400 uppercase font-bold animate-pulse">
+                    WAITING FOR PLAYERS
+                </div>
+            </div>
+
+            <!-- Players Spinners Container -->
+            <div id="battle-players-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Populated dynamically -->
+            </div>
+
+            <!-- Battle Winner Announcement Banner -->
+            <div id="battle-winner-banner" class="hidden bg-gradient-to-r from-orange-600/30 to-amber-600/30 border-2 border-orange-500 p-4 rounded-xl text-center">
+                <h4 class="text-lg font-black uppercase text-white tracking-wider" id="battle-winner-text">Winner: You! +1,250 Scrap</h4>
+                <p class="text-xs text-gray-300 font-mono mt-1">All unboxed gear has been credited to your balance.</p>
+            </div>
+
+            <button onclick="startBattleRoll()" id="battle-start-btn" class="w-full py-4 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white font-black uppercase tracking-widest text-base rounded shadow-lg border border-orange-400/40 transition">
+                START CASE BATTLE ROLL
+            </button>
+        </div>
+    </div>
+
+    <!-- WALLET MODAL (Deposit / Withdraw) -->
+    <div id="wallet-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4">
+        <div class="bg-rust-card border border-rust-border rounded-xl max-w-md w-full p-6 shadow-2xl relative">
+            <button onclick="closeWalletModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+            <h3 class="text-lg font-black uppercase tracking-wider text-white mb-4"><i class="fa-solid fa-wallet text-orange-500 mr-2"></i> Wallet / Cashier</h3>
+            
+            <div class="flex border-b border-rust-border mb-4">
+                <button onclick="setWalletTab('deposit')" id="w-tab-deposit" class="flex-1 py-2 font-bold text-xs uppercase text-orange-400 border-b-2 border-orange-500">Deposit Skins / Scrap</button>
+                <button onclick="setWalletTab('withdraw')" id="w-tab-withdraw" class="flex-1 py-2 font-bold text-xs uppercase text-gray-400">Withdraw</button>
+            </div>
+
+            <div id="wallet-content-deposit" class="flex flex-col gap-4">
+                <p class="text-xs text-gray-400 font-mono">Deposit Rust Steam skins or instantly refill via mock crypto/card gateway.</p>
+                <div class="grid grid-cols-3 gap-2">
+                    <button onclick="addBalance(500)" class="p-3 bg-rust-dark border border-rust-border rounded hover:border-orange-500 text-center transition">
+                        <span class="block font-mono text-amber-400 font-bold">+500</span>
+                        <span class="text-[10px] text-gray-500 font-mono">Scrap</span>
+                    </button>
+                    <button onclick="addBalance(1000)" class="p-3 bg-rust-dark border border-rust-border rounded hover:border-orange-500 text-center transition">
+                        <span class="block font-mono text-amber-400 font-bold">+1,000</span>
+                        <span class="text-[10px] text-gray-500 font-mono">Scrap</span>
+                    </button>
+                    <button onclick="addBalance(5000)" class="p-3 bg-rust-dark border border-rust-border rounded hover:border-orange-500 text-center transition">
+                        <span class="block font-mono text-amber-400 font-bold">+5,000</span>
+                        <span class="text-[10px] text-gray-500 font-mono">Scrap</span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="wallet-content-withdraw" class="flex flex-col gap-4 hidden">
+                <p class="text-xs text-gray-400 font-mono">Withdraw Rust weapon skins directly to your Steam Trade URL.</p>
+                <input type="text" placeholder="Paste Steam Trade URL..." class="w-full bg-rust-dark border border-rust-border rounded p-2.5 text-xs font-mono text-white focus:outline-none focus:border-orange-500">
+                <button onclick="showToast('Withdrawal request placed successfully!', 'success'); closeWalletModal();" class="w-full py-3 bg-orange-600 text-white font-bold uppercase text-xs rounded hover:bg-orange-500 transition">
+                    Request Withdrawal
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // Global State
+        let userBalance = 1250.00;
+        let activeGame = 'coinflip';
+        let coinSide = 'terror';
+        let rouletteColor = 'rust';
+        let currentCaseType = 'airdrop';
+        let isSpinning = false;
+
+        // Case Battles State
+        let battlePlayersCount = 2;
+        let battleCaseType = 'airdrop';
+        let battleCratesCount = 1;
+        let activeBattleRooms = [
+            { id: 101, host: 'ZergMaster', players: 1, maxPlayers: 2, caseType: 'airdrop', count: 1, cost: 50 },
+            { id: 102, host: 'BanditKing', players: 2, maxPlayers: 3, caseType: 'military', count: 3, cost: 750 },
+            { id: 103, host: 'IceCrystal', players: 1, maxPlayers: 2, caseType: 'elite', count: 1, cost: 1000 }
+        ];
+        let currentBattleRoom = null;
+
+        // Update balance DOM
+        function updateBalanceDisplay() {
+            document.getElementById('user-balance').innerText = userBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        // Toast Notifications
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `pointer-events-auto px-4 py-3 rounded-lg shadow-xl border text-xs font-mono font-bold flex items-center gap-2 transform translate-y-2 opacity-0 transition-all duration-300 ${
+                type === 'success' ? 'bg-rust-card border-orange-500 text-orange-400' : 'bg-rust-card border-red-500 text-red-400'
+            }`;
+            toast.innerHTML = `<i class="fa-solid ${type === 'success' ? 'fa-circle-check text-orange-500' : 'fa-circle-exclamation text-red-500'}"></i> ${message}`;
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Navigation Tabs
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.nav-btn').forEach(el => {
+                el.classList.remove('bg-orange-600/20', 'text-orange-400', 'border', 'border-orange-500/40');
+                el.classList.add('text-gray-400');
+            });
+
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            const btn = document.getElementById(`nav-${tabId}`);
+            if(btn) {
+                btn.classList.add('bg-orange-600/20', 'text-orange-400', 'border', 'border-orange-500/40');
+                btn.classList.remove('text-gray-400');
+            }
+            if(tabId === 'battles') renderBattlesLobby();
+        }
+
+        // Wallet Modal
+        // CASE BATTLES LOGIC
+        function renderBattlesLobby() {
+            const grid = document.getElementById('battles-lobby-grid');
+            grid.innerHTML = '';
+            
+            if(activeBattleRooms.length === 0) {
+                grid.innerHTML = `<div class="col-span-2 text-center py-8 text-gray-400 font-mono text-xs">No active battle rooms. Create one above!</div>`;
+                return;
+            }
+
+            activeBattleRooms.forEach(room => {
+                const cost = room.count * (room.caseType === 'airdrop' ? 50 : room.caseType === 'military' ? 250 : 1000);
+                const div = document.createElement('div');
+                div.className = 'bg-rust-dark border border-rust-border rounded-xl p-4 flex flex-col gap-3 shadow-md hover:border-orange-500/50 transition';
+                div.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <span class="font-bold text-xs uppercase text-orange-400 font-mono">${room.host}'s Battle</span>
+                        <span class="bg-rust-border px-2 py-0.5 rounded text-[10px] font-mono text-gray-300 uppercase">${room.maxPlayers} Players</span>
+                    </div>
+                    <div class="flex items-center gap-3 bg-rust-card p-3 rounded border border-rust-border">
+                        <div class="w-12 h-12 bg-rust-border/30 rounded flex items-center justify-center text-orange-500 text-2xl">
+                            <i class="fa-solid fa-box-open"></i>
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="font-bold text-xs uppercase text-white">${room.caseType} Crate (${room.count}x)</span>
+                            <span class="text-[11px] text-amber-400 font-mono font-bold"><i class="fa-solid fa-rust"></i> Entry: ${cost.toLocaleString()} Scrap</span>
+                        </div>
+                    </div>
+                    <button onclick="joinBattleRoom(${room.id})" class="w-full py-2.5 bg-orange-600 hover:bg-orange-500 text-white font-bold uppercase text-xs rounded transition shadow">
+                        Join Battle (${room.players}/${room.maxPlayers})
+                    </button>
+                `;
+                grid.appendChild(div);
+            });
+        }
+
+        function openCreateBattleModal() {
+            document.getElementById('create-battle-modal').classList.remove('hidden');
+            document.getElementById('create-battle-modal').classList.add('flex');
+        }
+        function closeCreateBattleModal() {
+            document.getElementById('create-battle-modal').classList.add('hidden');
+            document.getElementById('create-battle-modal').classList.remove('flex');
+        }
+        function setBattlePlayers(p) {
+            battlePlayersCount = p;
+            document.getElementById('b-mode-2').className = p === 2 ? 'p-3 bg-orange-600/20 border-2 border-orange-500 rounded text-white font-bold text-xs uppercase flex items-center justify-center gap-2' : 'p-3 bg-rust-dark border-2 border-rust-border rounded text-gray-400 font-bold text-xs uppercase flex items-center justify-center gap-2';
+            document.getElementById('b-mode-3').className = p === 3 ? 'p-3 bg-orange-600/20 border-2 border-orange-500 rounded text-white font-bold text-xs uppercase flex items-center justify-center gap-2' : 'p-3 bg-rust-dark border-2 border-rust-border rounded text-gray-400 font-bold text-xs uppercase flex items-center justify-center gap-2';
+        }
+        function setBattleCase(c) {
+            battleCaseType = c;
+            ['airdrop', 'military', 'elite'].forEach(type => {
+                const btn = document.getElementById(`b-case-${type}`);
+                if(type === c) {
+                    btn.className = 'p-3 bg-rust-dark border-2 border-orange-500 rounded text-center';
+                    btn.children[0].className = 'block font-bold text-xs uppercase text-orange-400';
+                } else {
+                    btn.className = 'p-3 bg-rust-dark border-2 border-rust-border rounded text-center';
+                    btn.children[0].className = 'block font-bold text-xs uppercase text-gray-300';
+                }
+            });
+        }
+        function setBattleCount(cnt) {
+            battleCratesCount = cnt;
+            [1, 3, 5].forEach(n => {
+                const btn = document.getElementById(`b-count-${n}`);
+                if(n === cnt) {
+                    btn.className = 'flex-1 py-2 bg-orange-600 text-white font-bold text-xs rounded border border-orange-400';
+                } else {
+                    btn.className = 'flex-1 py-2 bg-rust-dark text-gray-400 font-bold text-xs rounded border border-rust-border';
+                }
+            });
+        }
+
+        function createBattleRoom() {
+            const cost = battleCratesCount * (battleCaseType === 'airdrop' ? 50 : battleCaseType === 'military' ? 250 : 1000);
+            if(userBalance < cost) {
+                showToast('Insufficient balance for this battle entry!', 'error');
+                return;
+            }
+            userBalance -= cost;
+            updateBalanceDisplay();
+            closeCreateBattleModal();
+
+            const newRoom = {
+                id: Date.now(),
+                host: 'You',
+                players: battlePlayersCount,
+                maxPlayers: battlePlayersCount,
+                caseType: battleCaseType,
+                count: battleCratesCount,
+                cost: cost
+            };
+
+            currentBattleRoom = newRoom;
+            openBattleRoomModal();
+        }
+
+        function joinBattleRoom(roomId) {
+            const room = activeBattleRooms.find(r => r.id === roomId);
+            if(!room) return;
+            const cost = room.cost;
+            if(userBalance < cost) {
+                showToast('Insufficient balance to join battle!', 'error');
+                return;
+            }
+            userBalance -= cost;
+            updateBalanceDisplay();
+            currentBattleRoom = room;
+            openBattleRoomModal();
+        }
+
+        function openBattleRoomModal() {
+            const modal = document.getElementById('battle-room-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+
+            document.getElementById('battle-room-subtitle').innerText = `${currentBattleRoom.caseType.toUpperCase()} Crate (${currentBattleRoom.count}x) • Combatants Ready`;
+            document.getElementById('battle-room-status').innerText = 'READY TO SPIN';
+            document.getElementById('battle-winner-banner').classList.add('hidden');
+            document.getElementById('battle-start-btn').disabled = false;
+
+            const container = document.getElementById('battle-players-container');
+            container.innerHTML = '';
+
+            const playerNames = ['You', 'ZergKing', 'ScrapRaider'];
+            for(let i=0; i<currentBattleRoom.maxPlayers; i++) {
+                const pDiv = document.createElement('div');
+                pDiv.className = 'bg-rust-dark border border-rust-border rounded-xl p-4 flex flex-col gap-3';
+                pDiv.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <span class="font-bold text-xs uppercase font-mono text-orange-400"><i class="fa-solid fa-user mr-1"></i> ${playerNames[i]}</span>
+                        <span id="p-score-${i}" class="font-mono text-xs text-amber-400 font-bold">Total: 0 Scrap</span>
+                    </div>
+                    <div class="w-full bg-rust-card rounded-lg border border-rust-border p-3 relative overflow-hidden h-28 flex items-center">
+                        <div class="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-1 bg-amber-400 z-20"></div>
+                        <div id="battle-track-${i}" class="flex gap-2 transition-all duration-[4000ms] ease-out">
+                            <!-- Populated on start -->
+                        </div>
+                    </div>
+                `;
+                container.appendChild(pDiv);
+            }
+        }
+
+        function closeBattleRoomModal() {
+            document.getElementById('battle-room-modal').classList.remove('hidden');
+            document.getElementById('battle-room-modal').classList.remove('flex');
+            document.getElementById('battle-room-modal').classList.add('hidden');
+            switchTab('battles');
+        }
+
+        function startBattleRoll() {
+            const btn = document.getElementById('battle-start-btn');
+            btn.disabled = true;
+            document.getElementById('battle-room-status').innerText = 'SPINNING CASES...';
+
+            const possibleItems = [
+                {name: 'Revolver', val: 45, icon: 'fa-gun'},
+                {name: 'SAR', val: 180, icon: 'fa-crosshairs'},
+                {name: 'AK-47 Ice', val: 750, icon: 'fa-snowflake'},
+                {name: 'Facemask', val: 300, icon: 'fa-helmet-safety'},
+                {name: 'Armored Door', val: 900, icon: 'fa-shield-halved'},
+                {name: 'LR-308', val: 3500, icon: 'fa-fire'}
+            ];
+
+            let totals = [0, 0, 0];
+            for(let i=0; i<currentBattleRoom.maxPlayers; i++) {
+                const track = document.getElementById(`battle-track-${i}`);
+                track.innerHTML = '';
+                
+                let playerTotal = 0;
+                let winningItem = possibleItems[Math.floor(Math.random() * possibleItems.length)];
+
+                for(let j=0; j<30; j++) {
+                    let itm = j === 25 ? winningItem : possibleItems[Math.floor(Math.random() * possibleItems.length)];
+                    if(j === 25) playerTotal += itm.val;
+
+                    let d = document.createElement('div');
+                    d.className = 'w-24 h-20 rounded bg-rust-card border border-rust-border flex flex-col items-center justify-center p-1 shrink-0';
+                    d.innerHTML = `<i class="fa-solid ${itm.icon} text-xl text-orange-400 mb-1"></i><span class="text-[9px] font-bold truncate w-full text-center">${itm.name}</span><span class="text-[9px] font-mono text-amber-400">${itm.val}</span>`;
+                    track.appendChild(d);
+                }
+                totals[i] = playerTotal;
+                track.style.transform = `translateX(-1800px)`;
+            }
+
+            setTimeout(() => {
+                let maxVal = Math.max(...totals);
+                let winnerIdx = totals.indexOf(maxVal);
+                let winnerName = winnerIdx === 0 ? 'You!' : winnerIdx === 1 ? 'ZergKing' : 'ScrapRaider';
+
+                document.getElementById('battle-room-status').innerText = 'BATTLE CONCLUDED';
+                const banner = document.getElementById('battle-winner-banner');
+                banner.classList.remove('hidden');
+
+                let prizePool = currentBattleRoom.cost * currentBattleRoom.maxPlayers;
+                if(winnerIdx === 0) {
+                    userBalance += prizePool;
+                    updateBalanceDisplay();
+                    document.getElementById('battle-winner-text').innerText = `Victory! You won the battle and claimed +${prizePool.toLocaleString()} Scrap!`;
+                    showToast(`Case Battle Won! +${prizePool} Scrap`, 'success');
+                } else {
+                    document.getElementById('battle-winner-text').innerText = `Winner: ${winnerName} with ${maxVal} Scrap value!`;
+                    showToast(`Case Battle Lost. Better luck next raid!`, 'error');
+                }
+            }, 4200);
+        }
+
+        // COINFLIP LOGIC
+        function selectCoinSide(side) {
+            coinSide = side;
+            if(side === 'terror') {
+                document.getElementById('side-terror').className = 'flex-1 py-3 px-4 rounded bg-orange-600 text-white font-bold text-sm tracking-wider uppercase border-2 border-orange-400 flex items-center justify-center gap-2 transition';
+                document.getElementById('side-survivor').className = 'flex-1 py-3 px-4 rounded bg-rust-dark text-gray-400 font-bold text-sm tracking-wider uppercase border-2 border-rust-border flex items-center justify-center gap-2 transition hover:text-white';
+            } else {
+                document.getElementById('side-survivor').className = 'flex-1 py-3 px-4 rounded bg-orange-600 text-white font-bold text-sm tracking-wider uppercase border-2 border-orange-400 flex items-center justify-center gap-2 transition';
+                document.getElementById('side-terror').className = 'flex-1 py-3 px-4 rounded bg-rust-dark text-gray-400 font-bold text-sm tracking-wider uppercase border-2 border-rust-border flex items-center justify-center gap-2 transition hover:text-white';
+            }
+        }
+        function setCoinBet(type) {
+            let input = document.getElementById('coin-bet-input');
+            let val = parseFloat(input.value) || 0;
+            if(type === 'half') input.value = Math.max(10, Math.floor(val / 2));
+            if(type === 'double') input.value = Math.min(userBalance, val * 2);
+            if(type === 'max') input.value = userBalance;
+        }
+        function playCoinflip() {
+            let bet = parseFloat(document.getElementById('coin-bet-input').value);
+            if(isNaN(bet) || bet <= 0) {
+                showToast('Invalid bet amount!', 'error');
+                return;
+            }
+            if(bet > userBalance) {
+                showToast('Insufficient balance!', 'error');
+                return;
+            }
+
+            userBalance -= bet;
+            updateBalanceDisplay();
+            
+            const btn = document.getElementById('coin-play-btn');
+            btn.disabled = true;
+
+            const coin = document.getElementById('coin-element');
+            coin.style.transform = 'rotateY(1800deg)';
+
+            setTimeout(() => {
+                const won = Math.random() >= 0.5;
+                const face = document.getElementById('coin-face');
+                if(won) {
+                    face.innerHTML = `<i class="fa-solid fa-skull text-3xl mb-1"></i><span class="text-xs tracking-widest font-mono">TERROR</span>`;
+                    userBalance += bet * 2;
+                    showToast(`Coinflip Won! +${(bet * 2).toFixed(2)} Scrap`, 'success');
+                    addLiveFeedItem('You', 'Coinflip', bet, '2.00x', `+${(bet*2).toFixed(2)}`);
+                } else {
+                    face.innerHTML = `<i class="fa-solid fa-shield text-3xl mb-1"></i><span class="text-xs tracking-widest font-mono">SURVIVOR</span>`;
+                    showToast(`Coinflip Lost! -${bet} Scrap`, 'error');
+                    addLiveFeedItem('You', 'Coinflip', bet, '0.00x', `-${bet}`);
+                }
+                updateBalanceDisplay();
+                coin.style.transform = 'rotateY(0deg)';
+                btn.disabled = false;
+            }, 1000);
+        }
+
+        // CRASH GAME SIMULATION
+        let crashInterval = null;
+        let crashMultiplier = 1.00;
+        let crashState = 'waiting'; // waiting, running, crashed
+        let crashBetActive = false;
+
+        function handleCrashAction() {
+            let bet = parseFloat(document.getElementById('crash-bet-input').value);
+            if(!crashBetActive) {
+                if(bet > userBalance) {
+                    showToast('Insufficient balance!', 'error');
+                    return;
+                }
+                userBalance -= bet;
+                updateBalanceDisplay();
+                crashBetActive = true;
+                document.getElementById('crash-action-btn').innerText = 'CASH OUT';
+                document.getElementById('crash-action-btn').className = 'w-full mt-4 py-4 rounded bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-black uppercase tracking-widest text-base shadow-lg border border-green-400/40 transition';
+                showToast('Crash bet placed successfully!', 'success');
+            } else {
+                // Cash out
+                let payout = bet * crashMultiplier;
+                userBalance += payout;
+                updateBalanceDisplay();
+                showToast(`Cashed out at ${crashMultiplier.toFixed(2)}x! Won +${payout.toFixed(2)} Scrap`, 'success');
+                addLiveFeedItem('You', 'Crash', bet, `${crashMultiplier.toFixed(2)}x`, `+${payout.toFixed(2)}`);
+                crashBetActive = false;
+                document.getElementById('crash-action-btn').innerText = 'PLACE BET FOR NEXT ROUND';
+                document.getElementById('crash-action-btn').className = 'w-full mt-4 py-4 rounded bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white font-black uppercase tracking-widest text-base shadow-lg border border-orange-400/40 transition';
+            }
+        }
+
+        // Start Crash loop
+        function startCrashLoop() {
+            let countdown = 3.0;
+            document.getElementById('crash-status').innerText = 'WAITING FOR NEXT ROUND...';
+            
+            let countInterval = setInterval(() => {
+                countdown -= 0.1;
+                document.getElementById('crash-sub-status').innerText = `LIFT OFF IN ${countdown.toFixed(1)}s`;
+                if(countdown <= 0) {
+                    clearInterval(countInterval);
+                    runCrashGame();
+                }
+            }, 100);
+        }
+
+        function runCrashGroup() {
+            // Placeholder loop starter
+        }
+
+        function runCrashGame() {
+            crashMultiplier = 1.00;
+            const crashPoint = 1.05 + (Math.random() < 0.1 ? 0 : Math.random() * 4.5);
+            document.getElementById('crash-status').innerText = 'CRASH IN PROGRESS';
+            
+            crashInterval = setInterval(() => {
+                crashMultiplier += 0.03;
+                document.getElementById('crash-multiplier-display').innerHTML = `${crashMultiplier.toFixed(2)}<span class="text-orange-500">x</span>`;
+                
+                if(crashMultiplier >= crashPoint) {
+                    clearInterval(crashInterval);
+                    document.getElementById('crash-status').innerText = 'CRASHED!';
+                    document.getElementById('crash-multiplier-display').innerHTML = `<span class="text-red-500">${crashMultiplier.toFixed(2)}x</span>`;
+                    
+                    if(crashBetActive) {
+                        showToast('Crash! You failed to cash out in time.', 'error');
+                        addLiveFeedItem('You', 'Crash', 100, '0.00x', '-100');
+                        crashBetActive = false;
+                        document.getElementById('crash-action-btn').innerText = 'PLACE BET FOR NEXT ROUND';
+                        document.getElementById('crash-action-btn').className = 'w-full mt-4 py-4 rounded bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white font-black uppercase tracking-widest text-base shadow-lg border border-orange-400/40 transition';
+                    }
+
+                    setTimeout(startCrashLoop, 3000);
+                }
+            }, 100);
+        }
+
+        // ROULETTE LOGIC
+        function selectRouletteColor(color) {
+            rouletteColor = color;
+            ['rust', 'bandit', 'elite', 'hazard'].forEach(c => {
+                const btn = document.getElementById(`r-color-${c}`);
+                if(c === color) {
+                    btn.className = 'p-3 rounded bg-orange-900/45 border-2 border-orange-600 text-white font-bold uppercase text-xs flex flex-col items-center gap-1 transition';
+                } else {
+                    btn.className = 'p-3 rounded bg-rust-dark border-2 border-rust-border text-gray-400 font-bold uppercase text-xs flex flex-col items-center gap-1 transition';
+                }
+            });
+        }
+        function spinRoulette() {
+            let bet = parseFloat(document.getElementById('roulette-bet-input').value);
+            if(bet > userBalance) {
+                showToast('Insufficient balance!', 'error');
+                return;
+            }
+            userBalance -= bet;
+            updateBalanceDisplay();
+
+            const strip = document.getElementById('roulette-strip');
+            strip.innerHTML = '';
+            
+            const items = ['rust', 'bandit', 'elite', 'hazard', 'rust', 'bandit', 'rust', 'elite'];
+            for(let i=0; i<30; i++) {
+                let item = items[Math.floor(Math.random() * items.length)];
+                let div = document.createElement('div');
+                div.className = `w-20 h-20 rounded-lg flex flex-col items-center justify-center font-bold text-xs uppercase shrink-0 border ${
+                    item === 'rust' ? 'bg-orange-900/30 border-orange-600 text-orange-400' :
+                    item === 'bandit' ? 'bg-blue-900/30 border-blue-600 text-blue-400' :
+                    item === 'elite' ? 'bg-purple-900/30 border-purple-600 text-purple-400' : 'bg-amber-900/30 border-amber-500 text-amber-400'
+                }`;
+                div.innerHTML = `<i class="fa-solid fa-circle-dot text-lg mb-1"></i>${item}`;
+                strip.appendChild(div);
+            }
+
+            strip.style.transition = 'transform 4s cubic-bezier(0.1, 0.8, 0.2, 1)';
+            strip.style.transform = `translateX(-1200px)`;
+
+            setTimeout(() => {
+                const won = Math.random() > 0.6;
+                if(won) {
+                    let mult = rouletteColor === 'rust' ? 2 : rouletteColor === 'bandit' ? 3 : rouletteColor === 'elite' ? 5 : 14;
+                    let payout = bet * mult;
+                    userBalance += payout;
+                    showToast(`Roulette Won! +${payout.toFixed(2)} Scrap`, 'success');
+                } else {
+                    showToast(`Roulette Lost! -${bet} Scrap`, 'error');
+                }
+                updateBalanceDisplay();
+                strip.style.transition = 'none';
+                strip.style.transform = 'translateX(0px)';
+            }, 4000);
+        }
+
+        // CASE OPENING LOGIC
+        function selectCase(type) {
+            currentCaseType = type;
+            ['airdrop', 'military', 'elite'].forEach(c => {
+                const card = document.getElementById(`case-card-${c}`);
+                if(c === type) {
+                    card.className = 'case-card bg-rust-dark border-2 border-orange-500 rounded-xl p-4 flex flex-col items-center cursor-pointer transition relative shadow-lg';
+                } else {
+                    card.className = 'case-card bg-rust-dark border-2 border-rust-border rounded-xl p-4 flex flex-col items-center cursor-pointer transition relative opacity-70 hover:opacity-100';
+                }
+            });
+            const cost = type === 'airdrop' ? 50 : type === 'military' ? 250 : 1000;
+            document.getElementById('case-spin-btn').innerText = `UNBOX CRATE (${cost.toLocaleString()} SCRAP)`;
+        }
+
+        function openCase() {
+            if(isSpinning) return;
+            const cost = currentCaseType === 'airdrop' ? 50 : currentCaseType === 'military' ? 250 : 1000;
+            if(userBalance < cost) {
+                showToast('Insufficient balance for this crate!', 'error');
+                return;
+            }
+
+            userBalance -= cost;
+            updateBalanceDisplay();
+            isSpinning = true;
+
+            const btn = document.getElementById('case-spin-btn');
+            btn.disabled = true;
+
+            const track = document.getElementById('case-spinner-track');
+            track.style.transition = 'none';
+            track.style.transform = 'translateX(0px)';
+            track.innerHTML = '';
+
+            const possibleItems = [
+                {name: 'Sheet Metal Door', rarity: 'common', val: 20, icon: 'fa-door-closed'},
+                {name: 'Revolver', rarity: 'common', val: 45, icon: 'fa-gun'},
+                {name: 'Semi-Automatic Rifle', rarity: 'rare', val: 180, icon: 'fa-crosshairs'},
+                {name: 'AK-47 Ice Crystal', rarity: 'epic', val: 750, icon: 'fa-snowflake'},
+                {name: 'Metal Facemask', rarity: 'rare', val: 300, icon: 'fa-helmet-safety'},
+                {name: 'Armored Door', rarity: 'epic', val: 900, icon: 'fa-shield-halved'},
+                {name: 'LR-308 Rust Riot', rarity: 'legendary', val: 3500, icon: 'fa-fire'}
+            ];
+
+            // Build 60 items in track for a long, smooth rollout
+            const builtItems = [];
+            for(let i=0; i<60; i++) {
+                let item = possibleItems[Math.floor(Math.random() * possibleItems.length)];
+                builtItems.push(item);
+                let div = document.createElement('div');
+                div.className = `w-32 h-36 rounded-lg bg-rust-card border-2 flex flex-col items-center justify-center p-3 shrink-0 shadow-md ${
+                    item.rarity === 'legendary' ? 'border-amber-500 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.4)]' :
+                    item.rarity === 'epic' ? 'border-purple-500 text-purple-400' :
+                    item.rarity === 'rare' ? 'border-blue-500 text-blue-400' : 'border-gray-700 text-gray-300'
+                }`;
+                div.innerHTML = `
+                    <i class="fa-solid ${item.icon} text-3xl mb-2"></i>
+                    <span class="font-bold text-[10px] text-center uppercase tracking-tighter truncate w-full">${item.name}</span>
+                    <span class="font-mono text-xs mt-1 text-amber-400 font-bold">${item.val} SCRAP</span>
+                `;
+                track.appendChild(div);
+            }
+
+            // Force reflow
+            track.getBoundingClientRect();
+
+            // Winning index around item 45, centered precisely
+            const winningIndex = 45;
+            const wonItem = builtItems[winningIndex];
+            
+            // Calculate target offset so winning item rests directly under the center line
+            // Item width (128px) + gap (16px) = 144px per item. Container width offset consideration.
+            const itemWidth = 144;
+            const targetOffset = (winningIndex * itemWidth) - (track.parentElement.clientWidth / 2) + (itemWidth / 2) + (Math.random() * 40 - 20);
+
+            setTimeout(() => {
+                track.style.transition = 'transform 4.5s cubic-bezier(0.08, 0.82, 0.12, 1)';
+                track.style.transform = `translateX(-${targetOffset}px)`;
+            }, 50);
+
+            setTimeout(() => {
+                userBalance += wonItem.val;
+                updateBalanceDisplay();
+                document.getElementById('case-result-display').innerHTML = `You unboxed <span class="text-amber-400 font-bold ml-1">${wonItem.name}</span> worth <span class="text-orange-500 font-bold ml-1">${wonItem.val} Scrap</span>!`;
+                showToast(`Unboxed ${wonItem.name} (+${wonItem.val} Scrap)`, 'success');
+                addLiveFeedItem('You', 'Cases', cost, `${(wonItem.val/cost).toFixed(1)}x`, `+${wonItem.val}`);
+                
+                isSpinning = false;
+                btn.disabled = false;
+            }, 4600);
+        }
+
+        // Live Bets Feed Data Simulation
+        function addLiveFeedItem(player, game, bet, mult, payout) {
+            const table = document.getElementById('live-bets-table');
+            const row = document.createElement('tr');
+            row.className = 'border-b border-rust-border/30 hover:bg-rust-dark/50 transition';
+            row.innerHTML = `
+                <td class="py-2.5 text-orange-400 font-bold">${player}</td>
+                <td class="py-2.5 text-gray-300">${game}</td>
+                <td class="py-2.5 text-gray-300"><i class="fa-solid fa-rust text-orange-500"></i> ${bet}</td>
+                <td class="py-2.5 text-amber-400 font-bold">${mult}</td>
+                <td class="py-2.5 text-right font-bold ${payout.startsWith('+') ? 'text-green-500' : 'text-red-500'}">${payout}</td>
+            `;
+            table.insertBefore(row, table.firstChild);
+            if(table.children.length > 10) table.removeChild(table.lastChild);
+        }
+
+        // Populate Mock Feed on Load
+        const mockPlayers = ['ScrapKing', 'BanditSurvivor', 'NakedWithRock', 'ZergLeader', 'RoamHero', 'C4Enjoyer'];
+        setInterval(() => {
+            let p = mockPlayers[Math.floor(Math.random() * mockPlayers.length)];
+            let g = Math.random() > 0.5 ? 'Coinflip' : 'Crash';
+            let b = Math.floor(Math.random() * 500) + 20;
+            let m = (Math.random() * 3 + 1).toFixed(2) + 'x';
+            let won = Math.random() > 0.4;
+            let payout = won ? `+${(b * parseFloat(m)).toFixed(0)}` : `-${b}`;
+            addLiveFeedItem(p, g, b, won ? m : '0.00x', payout);
+        }, 4000);
+
+        // Chat Simulation
+        function sendChatMessage() {
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if(!text) return;
+
+            const chat = document.getElementById('chat-messages');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'flex flex-col gap-0.5';
+            msgDiv.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <span class="text-orange-500 font-bold">You (Lv.42)</span>
+                    <span class="text-[9px] text-gray-500">Just now</span>
+                </div>
+                <p class="text-gray-300">${escapeHtml(text)}</p>
+            `;
+            chat.appendChild(msgDiv);
+            chat.scrollTop = chat.scrollHeight;
+            input.value = '';
+        }
+        function handleChatKey(e) {
+            if(e.key === 'Enter') sendChatMessage();
+        }
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        // Initialize Crash Loop on Load
+        window.onload = function() {
+            updateBalanceDisplay();
+            startCrashLoop();
+        };
+    </script>
+</body>
+</html>
